@@ -6,6 +6,13 @@ All notable changes to Shelf are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Portuguese ISBNs are looked up in the national library catalogue.** ISBNs that
+  start 978-989 or 978-972 are looked up first in PORBASE, the Biblioteca Nacional
+  de Portugal's catalogue. If PORBASE has no record, the usual sources answer as
+  before. Open Library and Google Books both lack many Portuguese titles.
+
 ## [0.65.0] - 2026-10-11
 
 A Shelf CSV export was not a full backup of its own data. The export wrote each
