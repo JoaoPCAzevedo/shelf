@@ -13,7 +13,9 @@ titles; the first ``dc:publisher`` is the name and the second the place;
 non-sorting markers survive as literal ``?``, ``<>`` or C1 characters. Series
 (``dc:relation``) is deliberately not read: it mixes real series with
 "Fora de colecção" ("outside any collection") and bare genre labels, and a
-wrong series would corrupt series tracking.
+wrong series would corrupt series tracking. A record may also link a scan of
+the book's cover, which `cover_url` hands to the covers cascade as its last
+resort for Portuguese ISBNs.
 
 Failures are non-fatal: a missing record, malformed response or HTTP failure
 returns a ProviderResult outcome so Shelf's normal metadata cascade can
@@ -23,6 +25,7 @@ continue.
 import logging
 import re
 import xml.etree.ElementTree as ET
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -31,6 +34,9 @@ from app.services import authors, bib_normalize, outbound, provider_result
 logger = logging.getLogger(__name__)
 
 SERVICE_URL = "https://urn.porbase.org/isbn/dc/xml"
+# Host of the catalogue's cover scans. Records link to it over http, which it
+# redirects to https; Shelf only downloads covers over https.
+COVER_HOST = "rnod.bnportugal.gov.pt"
 _DC = "{http://purl.org/dc/elements/1.1/}"
 
 # PORBASE marks the non-sorting article of a title (and of a subtitle after
@@ -123,16 +129,27 @@ def _parse_record(root: ET.Element) -> dict | None:
     return result
 
 
-async def lookup(
-    isbn13: str, client: httpx.AsyncClient
-) -> provider_result.ProviderResult:
-    """Look up a Portuguese book by ISBN-13 in PORBASE.
+def _cover_url(root: ET.Element) -> str | None:
+    """The record's cover-scan link as an https URL, or None.
 
-    Never raises. A record with a usable title returns ``found``; the
-    ``<error>`` body, an empty or malformed response, or any other non-200,
-    non-429 status falls through as ``no_match``; a 429 is ``rate_limited``;
-    an unreachable endpoint is ``transport_failed``.
+    The link is one of several ``dc:identifier`` values (record id, URN, shelf
+    mark) and is the only one on `COVER_HOST`. It is used exactly as given:
+    the ``img`` id alone selects the picture, so it cannot be rebuilt from
+    the ISBN. Some records carry a link that answers 200 with an empty body;
+    the caller's size check rejects those.
     """
+    for identifier in _texts(root, "identifier"):
+        parts = urlsplit(identifier)
+        if parts.hostname == COVER_HOST and parts.path.startswith("/ImagesBN/"):
+            return parts._replace(scheme="https").geturl()
+    return None
+
+
+async def _fetch_record(
+    isbn13: str, client: httpx.AsyncClient
+) -> tuple[ET.Element | None, provider_result.ProviderResult | None]:
+    """One request to the resolver: ``(record, None)`` on a hit, otherwise
+    ``(None, result)`` carrying why there is no record. Never raises."""
     await outbound.acquire("urn.porbase.org")
 
     try:
@@ -143,25 +160,65 @@ async def lookup(
         )
     except httpx.HTTPError as exc:
         logger.debug("PORBASE lookup failed for ISBN %s: %s", isbn13, exc)
-        return provider_result.transport_failed("porbase")
+        return None, provider_result.transport_failed("porbase")
 
     classified = provider_result.classify_response("porbase", resp)
     if classified is not None:
         logger.debug(
             "PORBASE lookup failed for ISBN %s: HTTP %d", isbn13, resp.status_code
         )
-        return classified
+        return None, classified
 
     try:
         root = ET.fromstring(resp.content)
-        if root.tag != "dc":
-            return provider_result.no_match("porbase", status=resp.status_code)
-        parsed = _parse_record(root)
-        if not parsed:
-            return provider_result.no_match("porbase", status=resp.status_code)
-        return provider_result.found("porbase", parsed, status=resp.status_code)
     except Exception:
         logger.debug(
             "PORBASE lookup: malformed response for ISBN %s", isbn13, exc_info=True
         )
-        return provider_result.no_match("porbase", status=resp.status_code)
+        return None, provider_result.no_match("porbase", status=resp.status_code)
+    if root.tag != "dc":
+        return None, provider_result.no_match("porbase", status=resp.status_code)
+    return root, None
+
+
+async def lookup(
+    isbn13: str, client: httpx.AsyncClient
+) -> provider_result.ProviderResult:
+    """Look up a Portuguese book by ISBN-13 in PORBASE.
+
+    Never raises. A record with a usable title returns ``found``; the
+    ``<error>`` body, an empty or malformed response, or any other non-200,
+    non-429 status falls through as ``no_match``; a 429 is ``rate_limited``;
+    an unreachable endpoint is ``transport_failed``.
+    """
+    root, failure = await _fetch_record(isbn13, client)
+    if failure is not None:
+        return failure
+
+    try:
+        parsed = _parse_record(root)
+    except Exception:
+        logger.debug(
+            "PORBASE lookup: unreadable record for ISBN %s", isbn13, exc_info=True
+        )
+        parsed = None
+    if not parsed:
+        return provider_result.no_match("porbase", status=200)
+    return provider_result.found("porbase", parsed, status=200)
+
+
+async def cover_url(isbn13: str, client: httpx.AsyncClient) -> str | None:
+    """The https URL of the catalogue's cover scan for `isbn13`, or None.
+
+    One extra resolver request — the cover chain runs later and apart from
+    the metadata lookup, so it asks again rather than carrying the link
+    through. Never raises: any miss or failure is simply "no cover here".
+    """
+    root, failure = await _fetch_record(isbn13, client)
+    if failure is not None:
+        return None
+    try:
+        return _cover_url(root)
+    except Exception:
+        logger.debug("PORBASE cover: unreadable record for ISBN %s", isbn13, exc_info=True)
+        return None

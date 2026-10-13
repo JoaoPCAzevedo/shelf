@@ -469,8 +469,8 @@ NEKTÁR uses `yaz-client` and `pymarc`; it paces each query against
 the requested edition. Its five-second query timeout and provider diagnostics
 stay server-side, while the scan surface receives only the normal provider
 outcome and `oszk` identifier.
-**The covers cascade and picker below are unchanged by this**: OSZK, SBN, KB and
-PORBASE contribute no cover source, and the DNB cover rung is a separate hand-written
+**The covers cascade and picker below are unchanged by this**: OSZK, SBN and KB
+contribute no cover source, and the DNB cover rung is a separate hand-written
 prefix test in `services/covers.py`, not a read of this registry. Any later
 OSZK cover source needs its own request pacing, host configuration, URL
 validation and a placement decision in the cover order and picker.
@@ -665,7 +665,7 @@ cannot answer differently on a shorter phrasing of the same request, and a
 host that just timed out costs another round trip per retry.
 
 **Covers** (`services/covers.py`) cascade: Open Library → Hardcover → DNB →
-Amazon → Google Books → IGDB, with manual upload, a pasted image URL
+Amazon → Google Books → PORBASE (Portuguese ISBNs only, last resort) → IGDB, with manual upload, a pasted image URL
 (`services/manual_cover.py`) and a search picker. Game
 and film artwork does not run the cascade — IGDB and TMDb each supply one URL
 with the metadata, downloaded directly through the same allow-list and
