@@ -6,7 +6,7 @@ from app.auth import require_role
 from app.features import require_feature
 from app.config import MEDIA_TYPES
 from app.database import get_db, get_game_platforms
-from app.routers import items, items_common
+from app.routers import items, items_common, items_scan_modes
 from app.services import item_copies, locations as location_svc
 from app.services.item_write import update_item_fields
 
@@ -281,7 +281,7 @@ async def shelf_fill_scan(
     # reading the supplement.  That is deliberate — a row misfiled before the
     # fix stays reachable by the barcode printed on it — so do not "fix" it by
     # completing `raw` above this line.
-    existing = items._find_item_by_barcode(raw)
+    existing = items_scan_modes._find_item_by_barcode(raw)
     if existing:
         try:
             with get_db() as db:

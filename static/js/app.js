@@ -35,7 +35,9 @@ var SCAN_WARN_STATUSES = [
 // Neither success nor failure: the scan worked and the answer is a report.
 // 'elsewhere' is Inventory mode declining to guess which of several copies
 // the barcode named, which is the correct outcome, not a warning.
-var SCAN_INFO_STATUSES = ['elsewhere'];
+// 'periodical_confirm' is a 977 scan waiting for the user to confirm the
+// publication and issue: nothing is filed yet, so neither success nor error.
+var SCAN_INFO_STATUSES = ['elsewhere', 'periodical_confirm'];
 
 function scanCardOutcome(root) {
     if (!root) return null;

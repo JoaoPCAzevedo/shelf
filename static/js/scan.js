@@ -410,6 +410,7 @@ function scanPage() {
                 this.scanResult = {
                     ok: outcome.ok,
                     warn: outcome.warn,
+                    info: outcome.info,
                     label: outcome.label || 'done',
                     title: outcome.title,
                     authors: outcome.authors,
@@ -420,7 +421,7 @@ function scanPage() {
                 // Track item IDs for inventory mode
                 this.recordInventoryItem(tmp);
             } catch (err) {
-                this.scanResult = { ok: false, warn: false, label: 'error', title: 'Scan failed', isbn: code };
+                this.scanResult = { ok: false, warn: false, info: false, label: 'error', title: 'Scan failed', isbn: code };
             }
             this.scanLoading = false;
         }

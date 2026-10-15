@@ -122,6 +122,9 @@ function shelfFillPage() {
                 tmp.innerHTML = html;
                 var outcome = scanCardOutcome(tmp.querySelector('.scan-result'));
                 this.scanResult = {
+                    ok: outcome && outcome.ok,
+                    warn: outcome && outcome.warn,
+                    info: outcome && outcome.info,
                     title: outcome && outcome.title,
                     label: outcome && outcome.label,
                     code: code

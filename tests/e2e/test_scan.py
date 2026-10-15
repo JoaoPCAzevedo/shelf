@@ -1376,7 +1376,7 @@ def test_a_wishlisted_isbn_scanned_in_add_mode_promotes_it(
 # paragraph inside the not_found arm's manual-add form — a hidden element
 # that still yields a (blank) textContent (`G51`).
 #
-# This section pins the fix across the router's full 21-status vocabulary,
+# This section pins the fix across the router's full 22-status vocabulary,
 # not just the one status that shipped broken, so a future status — or a
 # regressed data-scan-* attribute on an existing one — fails here instead of
 # reaching a user as a blank toast.
@@ -1413,6 +1413,11 @@ def _render_status_card(status, **overrides):
         "supplement_rejected": False,
     }
     ctx.update(overrides)
+    if status == "periodical_confirm":
+        # Its own fragment, not an arm of scan_result.html (G78).
+        return template_env().get_template(
+            "fragments/periodical_scan_result.html"
+        ).render(**ctx)
     return template_env().get_template("fragments/scan_result.html").render(**ctx)
 
 
@@ -1434,6 +1439,18 @@ _STATUS_CASES = {
     "confirmed": dict(title="Dune", item_id=7, message="Confirmed at Office Shelf"),
     "relocated": dict(title="Dune", item_id=7, message="Was at Office Shelf, updated to Loft Box"),
     "elsewhere": dict(title="Dune", item_id=7, message="Copies at Office Shelf and Loft Box; none here."),
+    "periodical_confirm": dict(
+        candidate={
+            "publication_title": "Wired",
+            "issn": "1059-1028",
+            "barcode_ean": "9771059102003",
+        },
+        raw_barcode="9771059102003",
+        csrf_token="test-token",
+        location_id=None,
+        notice="",
+        mode="add",
+    ),
     "found": dict(title="Dune", item_id=7, message="Location: Office Shelf"),
     "marked_read": dict(title="Dune", item_id=7, media_type="dvd", message="Marked as watched"),
     "already_checked_out": dict(title="Dune", item_id=7, message="Already lent to Bea"),
@@ -1463,7 +1480,7 @@ _OK_STATUSES = {
 # rather than folded into _OK_STATUSES because the point of the status is
 # that three other consumers used to classify it as an *error* (issue #116);
 # a two-way split here would not notice that coming back.
-_INFO_STATUSES = {"elsewhere"}
+_INFO_STATUSES = {"elsewhere", "periodical_confirm"}
 
 # Everything else toasts as a warning.
 
@@ -1491,6 +1508,7 @@ _TOAST_MUST_CONTAIN = {
     "confirmed": "Confirmed at Office Shelf",
     "relocated": "Was at Office Shelf, updated to Loft Box",
     "elsewhere": "Copies at Office Shelf and Loft Box; none here.",
+    "periodical_confirm": "Confirm the issue below",
     "found": "Location: Office Shelf",
     "marked_read": "Watched: Dune",
     "already_checked_out": "Already lent to Bea",
@@ -1506,7 +1524,7 @@ _TOAST_MUST_CONTAIN = {
 assert set(_STATUS_CASES) == _OK_STATUSES | _INFO_STATUSES | {
     "duplicate", "already_checked_out", "not_checked_out", "in_trash",
     "not_owned", "not_found", "error", "legacy_ambiguous", "legacy_incomplete",
-}, "status table drifted from the 21-status vocabulary"
+}, "status table drifted from the 22-status vocabulary"
 assert not (_OK_STATUSES & _INFO_STATUSES), "a status is one class or the other"
 assert set(_TOAST_MUST_CONTAIN) == set(_STATUS_CASES), (
     "every status case needs the text its toast must carry"
@@ -1517,7 +1535,7 @@ assert set(_TOAST_MUST_CONTAIN) == set(_STATUS_CASES), (
 def test_every_scan_status_toasts_non_empty_text(live_server, authed_page, status):
     """The pin: every status in the router's vocabulary toasts *something*.
 
-    Parametrised over the full 21-status table so a future status — or a
+    Parametrised over the full 22-status table so a future status — or a
     regressed data-scan-* attribute on an existing one — fails here instead
     of shipping a blank toast."""
     authed_page.goto(f"{live_server['url']}/scan")

@@ -11,10 +11,11 @@ import re
 
 import httpx
 
+from app import config
 from app.services import outbound, provider_result
 
 logger = logging.getLogger(__name__)
-RESOURCE_URL = "https://portal.issn.org/resource/ISSN/{issn}"
+RESOURCE_URL = config.ISSN_PORTAL_URL_DEFAULT  # alias of the default; lookup() resolves at call time
 _USER_AGENT = "Shelf/1.0 (+https://github.com/dgahagan/shelf)"
 
 
@@ -116,7 +117,7 @@ async def lookup(
         resp = await outbound.fetch(
             client,
             "GET",
-            RESOURCE_URL.format(issn=canonical),
+            config.issn_portal_url().format(issn=canonical),
             params={"format": "json"},
             headers={
                 "Accept": "application/ld+json, application/json;q=0.9",

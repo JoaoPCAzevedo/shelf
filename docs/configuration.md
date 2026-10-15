@@ -23,6 +23,7 @@ Set these in your `.env` file next to `docker-compose.yml`, or with `-e` on
 | `SHELF_DISABLE_RATE_LIMIT` | *(unset)* | Turns off per-IP rate limiting. For tests and local development only |
 | `SHELF_DISABLE_PRICE_ALERTS` | *(unset)* | Stops the nightly wishlist price-alert check from starting, so it never calls ISBNdb. For tests only — the test suite sets it; leave it unset in production |
 | `SHELF_UPC_LOOKUP_URL` | *(unset)* | Overrides the UPC Item DB lookup endpoint. For the test suite only — the E2E gate points it at a local stub. Leave it unset in production; the trial endpoint is used and paced when it is |
+| `SHELF_ISSN_PORTAL_URL` | *(unset)* | Overrides the ISSN Portal resource URL (a template with an `{issn}` placeholder). For the test suite only — the E2E gate points it at a local stub. Leave it unset in production |
 
 ### Credential overrides
 

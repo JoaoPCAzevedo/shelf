@@ -6,6 +6,46 @@ All notable changes to Shelf are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-10-15
+
+Shelf could catalogue a magazine issue, but no barcode scan ever reached that
+flow. A magazine's 977 barcode in Add or Wishlist was sent to the product
+lookup, and the 15- and 18-digit forms with an add-on were refused as an
+invalid ISBN. That included the Italian manga volumes in
+[#155](https://github.com/dgahagan/shelf/issues/155), which are registered as
+periodicals. Now a 977 scan opens the magazine confirm card.
+
+### Added
+
+- **Scanning a magazine barcode opens the confirm card.** In Add and Wishlist,
+  a 977 barcode goes straight to the periodical confirm card. This works for
+  13, 15 or 18 digits, whatever the Media Type dropdown says. The card shows the
+  publication's ISSN and the barcode's add-on. You confirm the publication and
+  the issue number before anything is saved. The full code is kept, add-on and
+  all, and nothing is truncated.
+- **Rescanning an issue you own says so.** Rescan an issue you already have,
+  using its full code with the add-on, and you get the "Already in collection"
+  card with a link to it. In Shelf Fill, the same scan files the issue on the
+  shelf.
+- **`SHELF_ISSN_PORTAL_URL`** points the ISSN lookup at another endpoint. It
+  exists for the test suite, so leave it unset in production.
+
+### Changed
+
+- **A pending magazine card is shown in blue, not as an error.** The toast, the
+  Recent scans row and both camera overlays (Scan and Shelf Fill) treat
+  "Confirm the issue below" as information.
+- **Shelf Fill's camera overlay now colours its result.** It used to show every
+  scan in green, even a failed one. It now uses the same colours as Scan:
+  green when the item was shelved, amber for a warning, blue for information,
+  red for an error. On Scan, the camera overlay shows "elsewhere" in blue;
+  before, it showed it in red.
+
+Not changed, on purpose: lend, return, move, inventory, lookup and quick-rate
+scans do not recognise a 977 barcode. A 977 issue is still filed as a
+magazine; filing it as manga or comics is not in this release. A 977 barcode
+whose check digit is wrong still goes to the product lookup, as before.
+
 ## [0.65.0] - 2026-10-11
 
 A Shelf CSV export was not a full backup of its own data. The export wrote each
@@ -5000,6 +5040,7 @@ First public release.
   protection, encrypted credential storage, optional passphrase-encrypted
   backups, HTTPS out of the box, non-root container
 
+[0.66.0]: https://github.com/dgahagan/shelf/releases/tag/v0.66.0
 [0.65.0]: https://github.com/dgahagan/shelf/releases/tag/v0.65.0
 [0.64.0]: https://github.com/dgahagan/shelf/releases/tag/v0.64.0
 [0.63.0]: https://github.com/dgahagan/shelf/releases/tag/v0.63.0

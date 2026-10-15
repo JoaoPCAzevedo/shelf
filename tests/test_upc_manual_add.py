@@ -238,7 +238,7 @@ class TestScanFindsManuallyAddedUpc:
 
     def test_find_item_by_barcode_matches_a_manually_added_upc(self, editor_client):
         """Scan modes (lend/return/move/lookup) route through this helper."""
-        from app.routers.items import _find_item_by_barcode
+        from app.routers.items_scan_modes import _find_item_by_barcode
 
         editor_client.post(
             "/api/items/manual",

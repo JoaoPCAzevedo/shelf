@@ -15,8 +15,40 @@ from app import features
 from app.config import status_labels
 from app.database import get_db
 from app.routers import items_common
+from app.services import isbn as isbn_svc
 from app.services import item_copies
+from app.services import upc as upc_svc
 from app.services.item_write import ItemValueError, update_item_fields
+
+
+def _find_item_by_barcode(raw: str) -> dict | None:
+    """Find an existing item by ISBN or UPC barcode. Returns dict or None."""
+    barcode_type = upc_svc.detect_barcode_type(raw)
+    # to_isbn13() zero-pads a UPC-A into an ISBN-shaped string, so a UPC must
+    # not be looked up against items.isbn — that is what mis-filed them (#20).
+    isbn13 = isbn_svc.to_isbn13(raw) if barcode_type != "upc" else None
+    upc_norm = upc_svc.normalize_upc(raw) if barcode_type == "upc" else None
+
+    with get_db() as db:
+        if isbn13:
+            item = db.execute(
+                "SELECT i.*, l.name as location_name FROM items i "
+                "LEFT JOIN locations l ON i.location_id = l.id WHERE i.isbn = ? "
+                "ORDER BY i.deleted_at IS NOT NULL, i.id",  # live wins over Trash
+                (isbn13,),
+            ).fetchone()
+            if item:
+                return dict(item)
+        if upc_norm:
+            item = db.execute(
+                "SELECT i.*, l.name as location_name FROM items i "
+                "LEFT JOIN locations l ON i.location_id = l.id WHERE i.upc = ? "
+                "ORDER BY i.deleted_at IS NOT NULL, i.id",  # live wins over Trash
+                (upc_norm,),
+            ).fetchone()
+            if item:
+                return dict(item)
+    return None
 
 
 #: How many copy locations a scan card names before it says "and N more".
