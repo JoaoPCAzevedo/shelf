@@ -332,6 +332,17 @@ def upc_lookup_url() -> str:
     return os.environ.get("SHELF_UPC_LOOKUP_URL") or UPC_LOOKUP_URL_DEFAULT
 
 
+ISSN_PORTAL_URL_DEFAULT = "https://portal.issn.org/resource/ISSN/{issn}"
+
+
+def issn_portal_url() -> str:
+    """The ISSN Portal resource template (`{issn}` placeholder): `SHELF_ISSN_PORTAL_URL`, else the portal.
+
+    For the test suite only: the E2E server points it at a local stub.
+    """
+    return os.environ.get("SHELF_ISSN_PORTAL_URL") or ISSN_PORTAL_URL_DEFAULT
+
+
 # HTTP client defaults
 HTTP_TIMEOUT = 15  # seconds for external API calls
 DEFAULT_PAGE_SIZE = 60

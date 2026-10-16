@@ -9,7 +9,11 @@ This lets *Private Eye*, for example, have a publication page containing many in
 
 ## Scan a magazine
 
-On **Scan**, choose **Magazine** and scan a valid 977 serial barcode.
+On **Scan**, in **Add** or **Wishlist** mode, scan a valid 977 serial barcode. You do not need to change the Media Type dropdown first: a 977 barcode opens the periodical confirmation card whatever the dropdown says.
+
+Scanners that read the 2- or 5-digit add-on as part of the code (15 or 18 digits) work too, and Shelf keeps the full code.
+
+The other scan modes (lend, return, move, inventory, lookup, quick rate) do not yet recognise a magazine by its barcode.
 
 Shelf decodes the ISSN from the 977 carrier and asks the ISSN metadata source for the publication title and publisher. A 2- or 5-digit barcode add-on is preserved separately.
 
@@ -20,7 +24,7 @@ The add-on is **not automatically treated as an issue number**. Publishers use s
 - issue date;
 - cover-date label, such as `September 2026` or `Summer Special`.
 
-If the ISSN metadata source is unavailable, the barcode identity is still retained and you can enter the publication title manually instead of receiving a generic `Magazine` result.
+If the ISSN metadata source is unavailable, the barcode identity is still retained and you can enter the publication title manually on the same card.
 
 If the publication title is missing or wrong, expand **Wrong or missing publication? Search magazines** and search Google Books by magazine title. Choosing a result only refills the confirmation card; Shelf does not add the issue until you review the concrete issue details and submit **Add confirmed issue**. When you do, the chosen result's cover is saved to the new issue. If that image cannot be downloaded, the issue is added without a cover; Shelf does not fall back to a book cover found by title.
 

@@ -1,23 +1,13 @@
 """E2E: Settings → Features round trips — the disabled page, a probe-gated
 confirm, and turning a feature back on from its own disabled page.
 
-**Scope note (T11, 2026-09-27).** The plan's third scenario — "scan a 977
-barcode from /scan with periodicals off, and assert the periodical scan
-result renders and its confirm form saves an item" — could not be written.
-Confirmed by reading the scan dispatch top to bottom (`app/routers/items.py`,
-`app/routers/items_common.py::_scan_upc`, `app/services/detect.py`): a 977
-EAN-13 is not an ISBN prefix (978/979), so `upc_svc.detect_barcode_type`
-files it as `"upc"`, and `_scan_upc` never reads `PERIODICAL_MEDIA_TYPES` or
-calls `app.routers.periodicals.render_scan_candidate` — that function, and
-the whole assist/confirm flow it feeds, is unreachable from any live route
-today (`grep -rn 977 app/routers/items.py app/routers/items_common.py
-app/services/detect.py` finds nothing). A 977 scan through `/scan` today
-lands on the generic "not found — add manually" card, media_type=magazine,
-via the ordinary UPC Item DB path. Writing a test against the plan's
-described behaviour would either fabricate a route that does not exist or
-silently assert the (different) real behaviour in its place, so this was
-reported to the orchestrator instead of guessed at. Tests 1, 2 and the
-`tests/e2e/test_responsive.py` addition (T11's other work items) are here.
+**Scope note (updated with plan scan-977-periodicals).** The T11 third
+scenario - a 977 barcode scanned from /scan with every feature off - is
+`test_a_977_scan_from_scan_with_every_feature_off`: the scan dispatch now
+routes any 977 barcode in Add or Wishlist to the periodical confirm card,
+asks the ISSN portal (stubbed, 404 -> no_match) rather than the UPC Item DB,
+and the confirm form saves a `periodical_issues` row even though the
+Periodicals feature is off (the redirect lands on its disabled page).
 """
 import sqlite3
 from pathlib import Path
@@ -253,6 +243,64 @@ def test_profiles_show_what_they_turn_on_without_hover(live_server, browser, set
         assert "Turns off: Lending" in text
         assert "Turns off: Sharing" in text
         assert "Nothing optional." in text
+        assert_page_clean(page)
+    finally:
+        ctx.close()
+
+
+def test_a_977_scan_from_scan_with_every_feature_off(server_factory, browser, upc_stub):
+    """A 977 scan reaches the periodical confirm card and saves an issue even
+    on a Minimal install, without calling the UPC Item DB (G83, G126)."""
+    server = server_factory()
+    base_url = server["url"]
+    credentials = _run_setup_wizard(browser, base_url, profile="minimal")
+
+    ctx = browser.new_context()
+    page = attach_page_guard(ctx.new_page())
+    try:
+        page.goto(f"{base_url}/login")
+        page.fill("input[name=username]", credentials["username"])
+        page.fill("input[name=password]", credentials["password"])
+        page.click("button[type=submit]")
+        page.wait_for_url(f"{base_url}/", timeout=10_000)
+
+        page.goto(f"{base_url}/scan")
+        page.wait_for_load_state("networkidle")
+
+        before = len(upc_stub["requests"])
+        lookups_before = [r for r in upc_stub["requests"] if r[0] == "/lookup"]
+
+        page.fill("#isbn-input", "977228014790460066")
+        page.press("#isbn-input", "Enter")
+
+        card = page.locator('[data-scan-status="periodical_confirm"]')
+        expect(card).to_be_visible(timeout=20_000)
+        expect(card).to_contain_text(
+            "No publication metadata was returned for this ISSN"
+        )
+        title_input = card.locator('input[name="publication_title"]')
+        expect(title_input).to_be_visible()
+
+        new_requests = upc_stub["requests"][before:]
+        lookups_after = [r for r in upc_stub["requests"] if r[0] == "/lookup"]
+        assert len(lookups_after) == len(lookups_before), "UPC Item DB was called"
+        assert "/issn/2280-1472" in [r[0] for r in new_requests], new_requests
+
+        title_input.fill("Test Weekly")
+        card.locator('input[name="issue_number"]').fill("12")
+        with page.expect_navigation() as nav:
+            card.locator('button[type="submit"]:has-text("Add confirmed issue")').click()
+        assert nav.value.status == 200
+
+        conn = sqlite3.connect(str(server["data_dir"] / "shelf.db"))
+        try:
+            rows = conn.execute(
+                "SELECT barcode_ean, barcode_supplement FROM periodical_issues"
+            ).fetchall()
+        finally:
+            conn.close()
+        assert rows == [("9772280147904", "60066")]
+
         assert_page_clean(page)
     finally:
         ctx.close()

@@ -10,6 +10,7 @@ from app.auth import require_role
 from app.features import require_feature
 from app.config import HTTP_TIMEOUT
 from app.database import get_db, get_setting
+from app.routers import items_common
 from app.services import cover_queue, item_write, periodical_google, periodical_records, periodical_scan, periodicals
 from app.services.item_write import ItemValueError, insert_item
 
@@ -106,6 +107,7 @@ async def render_scan_candidate(
 
     existing = find_periodical_item(raw)
     if existing:
+        items_common._log_scan(serial.full_code, "magazine", "duplicate", existing["id"], mode)
         return templates.TemplateResponse(
             request,
             "fragments/scan_result.html",
@@ -121,6 +123,7 @@ async def render_scan_candidate(
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
         result = await periodical_scan.resolve_barcode(raw, client)
     candidate = result.payload if isinstance(result.payload, dict) else {}
+    items_common._log_scan(serial.full_code, "magazine", "periodical_confirm", mode=mode)
     notice = None
     if not result.found:
         notice = {

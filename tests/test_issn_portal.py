@@ -103,3 +103,32 @@ async def test_lookup_preserves_transport_failure():
         result = await issn_portal.lookup("0953-6167", object())
 
     assert result.outcome == "transport_failed"
+
+
+@pytest.mark.asyncio
+async def test_a_configured_url_override_is_used(monkeypatch):
+    monkeypatch.setenv("SHELF_ISSN_PORTAL_URL", "http://127.0.0.1:1/issn/{issn}")
+    fake_fetch = AsyncMock(return_value=httpx.Response(200, json=_payload()))
+    client = object()
+
+    with patch("app.services.issn_portal.outbound.fetch", new=fake_fetch):
+        await issn_portal.lookup("0953-6167", client)
+
+    assert fake_fetch.await_args.args == (client, "GET", "http://127.0.0.1:1/issn/0953-6167")
+
+
+@pytest.mark.asyncio
+async def test_with_no_override_it_uses_the_portal_default(monkeypatch):
+    import app.config
+
+    monkeypatch.delenv("SHELF_ISSN_PORTAL_URL", raising=False)
+    fake_fetch = AsyncMock(return_value=httpx.Response(200, json=_payload()))
+    client = object()
+
+    with patch("app.services.issn_portal.outbound.fetch", new=fake_fetch):
+        await issn_portal.lookup("0953-6167", client)
+
+    assert fake_fetch.await_args.args == (
+        client, "GET", "https://portal.issn.org/resource/ISSN/0953-6167",
+    )
+    assert app.config.ISSN_PORTAL_URL_DEFAULT == "https://portal.issn.org/resource/ISSN/{issn}"

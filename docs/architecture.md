@@ -498,6 +498,16 @@ a retail UPC and neither produces a plain `items` row:
   host. A chosen result only refills the card; the scanned EAN and supplement
   stay the issue's identity, and an ISSN is taken only when its check digit is
   valid. Nothing is written until the user confirms.
+  **The entry point is `/api/scan`.** In Add and Wishlist mode, `_scan_isbn_inner`
+  hands any code `periodicals.parse_barcode` accepts (13, 15 or 18 digits) to
+  `routers/periodicals.render_scan_candidate`. This happens **before** the
+  bare-legacy stop and the UPC dispatch, and it ignores the media-type hint,
+  because 977 is GS1's ISSN prefix. The outcome is logged as
+  `periodical_confirm`, an *info* scan status: the scan succeeded, but nothing
+  is filed until the user confirms. Existing-item modes do not take this path,
+  because `_find_item_by_barcode` cannot see a magazine issue. Shelf Fill calls
+  the same dispatch, so it renders the card, and it places only an owned issue
+  rescanned with its add-on (the `duplicate` card).
 - **Discogs** (`services/discogs.py`) is optional exact-pressing enrichment on
   an existing Music item. `routers/music.py` searches concrete releases and
   validates a chosen release before `services/discogs_selection.py` stores only
@@ -1586,7 +1596,7 @@ path — never by basename — with its reason at the entry. On the **items** si
   table by definition, and so does the `copies_live` CREATE, which joins `items`;
 - the four historical backfills inside the append-only `MIGRATIONS` tuple, which
   ran against the table at a past schema version;
-- `_find_item_by_barcode`'s two lookups (`routers/items.py`) and the CSV dedup
+- `_find_item_by_barcode`'s two lookups (`routers/items_scan_modes.py`) and the CSV dedup
   reads (`routers/items_csv.py` — ISBN, UPC for an ISBN-less row, then
   title/author) — the existing-item scan and import paths must
   still *see* a soft-deleted row, so that a restore can match on it rather
@@ -1679,7 +1689,11 @@ stdlib HTTP server that replays responses recorded under `tests/fixtures/`, and
 `_boot_server` injects its URL into the *fixed* environment block every E2E
 server gets — so no test opts in, and an inherited `SHELF_UPC_LOOKUP_URL` from
 the developer's shell cannot displace it. The stub host is deliberately absent
-from `HOST_RATE_LIMITS`. TMDb and IGDB need no equivalent: they are
+from `HOST_RATE_LIMITS`. The same stub fronts the ISSN portal: `_boot_server`
+also points `SHELF_ISSN_PORTAL_URL` (`config.issn_portal_url()`, read at call
+time) at it. The stub answers 404 for every path except `/lookup`, so a 977
+scan in E2E degrades to the manual-title card rather than reaching
+`portal.issn.org`. TMDb and IGDB need no equivalent: they are
 credential-gated and skip cleanly when no key is configured.
 
 **The `live` marker and `tests/contract/`.** A test that really does call a

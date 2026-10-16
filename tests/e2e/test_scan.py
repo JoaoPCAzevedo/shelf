@@ -63,6 +63,36 @@ def test_scan_page_has_isbn_input(live_server, authed_page):
     expect(isbn_input).to_be_visible()
 
 
+@pytest.mark.parametrize("history_load", ["initial", "mode_switch"])
+def test_pending_history_does_not_erase_new_scan(live_server, authed_page, history_load):
+    pg = authed_page
+    if history_load == "mode_switch":
+        pg.goto(f"{live_server['url']}/scan")
+        pg.wait_for_load_state("networkidle")
+
+    pending = []
+    pg.route("**/api/recent-scans?*", lambda route: pending.append(route))
+    pg.route("**/api/scan", lambda route: route.fulfill(
+        content_type="text/html",
+        body='<div class="scan-result" data-scan-status="added">'
+             '<a href="/item/42" data-scan-title>New scanned book</a></div>',
+    ))
+    with pg.expect_request(lambda r: "/api/recent-scans" in r.url):
+        if history_load == "initial":
+            pg.goto(f"{live_server['url']}/scan", wait_until="domcontentloaded")
+        else:
+            pg.get_by_role("button", name="Add", exact=True).click()
+
+    pg.fill("#isbn-input", "9780000450012")
+    pg.press("#isbn-input", "Enter")
+    expect(pg.locator("#scan-results")).to_contain_text("New scanned book")
+    pending[0].fulfill(content_type="text/html", body="<p>Older history</p>")
+    pg.wait_for_load_state("networkidle")
+    expect(pg.locator("#scan-results")).to_contain_text("New scanned book")
+    expect(pg.locator("#scan-results")).not_to_contain_text("Older history")
+    assert_page_clean(pg)
+
+
 def test_confirmed_legacy_inventory_result_is_added_to_scanned_ids(
     live_server, authed_page
 ):
@@ -92,6 +122,23 @@ def test_confirmed_legacy_inventory_result_is_added_to_scanned_ids(
 
     assert state == {"ids": [42], "marker": False}
     assert_page_clean(authed_page)
+
+
+def test_latest_scan_mode_history_wins(live_server, authed_page):
+    pg = authed_page
+    pg.goto(f"{live_server['url']}/scan")
+    pg.wait_for_load_state("networkidle")
+    pending = []
+    pg.route("**/api/recent-scans?*", lambda route: pending.append(route))
+    for mode in ("Wishlist", "Add"):
+        with pg.expect_request(lambda r: "/api/recent-scans" in r.url):
+            pg.get_by_role("button", name=mode, exact=True).click()
+    pending[1].fulfill(content_type="text/html", body="<p>Latest Add history</p>")
+    expect(pg.locator("#scan-results")).to_contain_text("Latest Add history")
+    pending[0].fulfill(content_type="text/html", body="<p>Outdated Wishlist history</p>")
+    pg.wait_for_load_state("networkidle")
+    expect(pg.locator("#scan-results")).to_contain_text("Latest Add history")
+    assert_page_clean(pg)
 
 
 def test_scan_mode_switching(live_server, authed_page):
@@ -1376,7 +1423,7 @@ def test_a_wishlisted_isbn_scanned_in_add_mode_promotes_it(
 # paragraph inside the not_found arm's manual-add form — a hidden element
 # that still yields a (blank) textContent (`G51`).
 #
-# This section pins the fix across the router's full 21-status vocabulary,
+# This section pins the fix across the router's full 22-status vocabulary,
 # not just the one status that shipped broken, so a future status — or a
 # regressed data-scan-* attribute on an existing one — fails here instead of
 # reaching a user as a blank toast.
@@ -1413,6 +1460,11 @@ def _render_status_card(status, **overrides):
         "supplement_rejected": False,
     }
     ctx.update(overrides)
+    if status == "periodical_confirm":
+        # Its own fragment, not an arm of scan_result.html (G78).
+        return template_env().get_template(
+            "fragments/periodical_scan_result.html"
+        ).render(**ctx)
     return template_env().get_template("fragments/scan_result.html").render(**ctx)
 
 
@@ -1434,6 +1486,18 @@ _STATUS_CASES = {
     "confirmed": dict(title="Dune", item_id=7, message="Confirmed at Office Shelf"),
     "relocated": dict(title="Dune", item_id=7, message="Was at Office Shelf, updated to Loft Box"),
     "elsewhere": dict(title="Dune", item_id=7, message="Copies at Office Shelf and Loft Box; none here."),
+    "periodical_confirm": dict(
+        candidate={
+            "publication_title": "Wired",
+            "issn": "1059-1028",
+            "barcode_ean": "9771059102003",
+        },
+        raw_barcode="9771059102003",
+        csrf_token="test-token",
+        location_id=None,
+        notice="",
+        mode="add",
+    ),
     "found": dict(title="Dune", item_id=7, message="Location: Office Shelf"),
     "marked_read": dict(title="Dune", item_id=7, media_type="dvd", message="Marked as watched"),
     "already_checked_out": dict(title="Dune", item_id=7, message="Already lent to Bea"),
@@ -1463,7 +1527,7 @@ _OK_STATUSES = {
 # rather than folded into _OK_STATUSES because the point of the status is
 # that three other consumers used to classify it as an *error* (issue #116);
 # a two-way split here would not notice that coming back.
-_INFO_STATUSES = {"elsewhere"}
+_INFO_STATUSES = {"elsewhere", "periodical_confirm"}
 
 # Everything else toasts as a warning.
 
@@ -1491,6 +1555,7 @@ _TOAST_MUST_CONTAIN = {
     "confirmed": "Confirmed at Office Shelf",
     "relocated": "Was at Office Shelf, updated to Loft Box",
     "elsewhere": "Copies at Office Shelf and Loft Box; none here.",
+    "periodical_confirm": "Confirm the issue below",
     "found": "Location: Office Shelf",
     "marked_read": "Watched: Dune",
     "already_checked_out": "Already lent to Bea",
@@ -1506,7 +1571,7 @@ _TOAST_MUST_CONTAIN = {
 assert set(_STATUS_CASES) == _OK_STATUSES | _INFO_STATUSES | {
     "duplicate", "already_checked_out", "not_checked_out", "in_trash",
     "not_owned", "not_found", "error", "legacy_ambiguous", "legacy_incomplete",
-}, "status table drifted from the 21-status vocabulary"
+}, "status table drifted from the 22-status vocabulary"
 assert not (_OK_STATUSES & _INFO_STATUSES), "a status is one class or the other"
 assert set(_TOAST_MUST_CONTAIN) == set(_STATUS_CASES), (
     "every status case needs the text its toast must carry"
@@ -1517,7 +1582,7 @@ assert set(_TOAST_MUST_CONTAIN) == set(_STATUS_CASES), (
 def test_every_scan_status_toasts_non_empty_text(live_server, authed_page, status):
     """The pin: every status in the router's vocabulary toasts *something*.
 
-    Parametrised over the full 21-status table so a future status — or a
+    Parametrised over the full 22-status table so a future status — or a
     regressed data-scan-* attribute on an existing one — fails here instead
     of shipping a blank toast."""
     authed_page.goto(f"{live_server['url']}/scan")

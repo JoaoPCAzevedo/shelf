@@ -2780,6 +2780,21 @@ grep -rn "async def _[a-z_]*(.*client" tests/ | head -40
   | `app/templates/fragments/recent_scans.html` | the `{% elif %}` chain — the `{% else %}` is red, and this row is **persisted**, so a miss stays wrong forever |
   | `fragments/scan_result.html` | **five** enumerations, not one |
 
+  **Each host also projects the outcome into its own camera overlay.**
+  `scanCardOutcome`'s flags reach the overlay only if the host copies them
+  into its `scanResult`. Two hosts do this:
+
+  | host | projection | overlay |
+  |---|---|---|
+  | `/scan` | `static/js/scan.js` builds `scanResult` | `scan.html`'s ternary |
+  | `/shelf-fill` | `static/js/shelf-fill.js` builds `scanResult` | `shelf_fill.html`'s ternary |
+
+  A flag the projection does not copy is `undefined`, so its arm never fires.
+  `scan.js` dropped `info` until `30a472b` (2026-10-15), so `elsewhere` showed
+  red on the camera. `shelf_fill.html` was hard-coded green, so a pending
+  periodical card read as a shelved success (plan-review Codex R1,
+  `scan-977-periodicals`). Check: `grep -n "scanResult = {" -A6 static/js/scan.js static/js/shelf-fill.js`.
+
   Grep that fragment for **every** `status ==` and `status in (` before
   editing. Adding to the badge alone leaves the card with no glyph, no title
   and no link — and, worst, the message falls to the `{% else %}` detail arm
@@ -3097,9 +3112,11 @@ for path, cap in re.findall(r'\"([^\"]+\.(?:py|html))\": \((\d+),', src):
 "
 ```
 
-- **Also `app/routers/items.py`:** 1592/1600 as of `31b40a3` (2026-10-09,
-  plan `issue-148-scan-default-status`, +7 within a stated +12 budget). Eight
-  lines are left, so the next plan that touches it should plan an extraction.
+- **Also `app/routers/items.py`:** 1571/1600 as of plan
+  `scan-977-periodicals` (2026-10-15). It reached 1596, then
+  `_find_item_by_barcode` was extracted (−30), and the 977 dispatch added +5.
+  29 lines are left. `items_scan_modes.py` now holds `_find_item_by_barcode`,
+  at 385/400.
 - **Status:** documented. The cap is already mechanically enforced — what is
   missing is the *warning* before the budget is spent, not the failure after.
   A lint that fails at 95% of a cap would move the signal to the change that
@@ -6040,6 +6057,30 @@ python3 -c "from app.config import MEDIA_TYPES, STATUS_MEDIA_TYPES as S; print([
 
 - **Status:** documented. This is a lint candidate: grep plan docs and tests
   for `media_type="music"` / `"music"` as a value.
+
+## G141 — When an E2E test asserts "no call to provider X" through the shared stub
+
+- **Rule:** filter `upc_stub["requests"]` by path (`/lookup` is UPC Item DB),
+  and never assert on the total length of the list. To prove a request went to
+  the second provider, assert that its own path is present.
+- **Why:** one stdlib stub fronts more than one provider. `_UpcStubHandler`
+  appends **every** GET before it dispatches, and since
+  `scan-977-periodicals` every E2E server also points `SHELF_ISSN_PORTAL_URL`
+  at it (the stub answers 404, which the client reads as `no_match`). A correct
+  ISSN request therefore makes the list longer. An "unchanged length" check
+  fails on exactly the behaviour it was meant to prove.
+- **Evidence:** plan-review Codex R2, `scan-977-periodicals`, 2026-10-15. The
+  plan asked for a length check. `tests/e2e/test_features.py::test_a_977_scan_from_scan_with_every_feature_off`
+  filters by path instead (`a632598`).
+- **Verify:**
+
+```bash
+grep -rn 'len(upc_stub\["requests"\])' tests/e2e
+# every hit is used only as a slice offset, never compared before and after.
+```
+
+- **Status:** documented. Revisit when the stub gains a third provider, or
+  when it is split into one stub per provider.
 
 ## Graveyard
 

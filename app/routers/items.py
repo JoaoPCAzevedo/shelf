@@ -19,6 +19,7 @@ from app.database import (get_db, get_setting, gc_orphaned_series_meta,
 from app.routers.series import MAX_SERIES_NAME
 from app.routers import items_common
 from app.routers import items_scan_modes
+from app.routers import periodicals as periodicals_router
 from app.routers.items_common import SORT_OPTIONS  # re-exported for pages.py
 from app.services import isbn as isbn_svc
 from app.services import browse_counts
@@ -32,6 +33,7 @@ from app.services import openlibrary, googlebooks, hardcover, covers, national
 from app.services import detect
 from app.services import cover_queue
 from app.services import legacy_book
+from app.services import periodicals as periodicals_svc
 from app.services import scan_outcome
 from app.services import item_merge
 from app.services import restore_report
@@ -88,36 +90,6 @@ def _find_duplicate_item(db, isbn13: str | None, upc_code: str | None, media_typ
         ).fetchone()
         if row:
             return dict(row)
-    return None
-
-
-def _find_item_by_barcode(raw: str) -> dict | None:
-    """Find an existing item by ISBN or UPC barcode. Returns dict or None."""
-    barcode_type = upc_svc.detect_barcode_type(raw)
-    # to_isbn13() zero-pads a UPC-A into an ISBN-shaped string, so a UPC must
-    # not be looked up against items.isbn — that is what mis-filed them (#20).
-    isbn13 = isbn_svc.to_isbn13(raw) if barcode_type != "upc" else None
-    upc_norm = upc_svc.normalize_upc(raw) if barcode_type == "upc" else None
-
-    with get_db() as db:
-        if isbn13:
-            item = db.execute(
-                "SELECT i.*, l.name as location_name FROM items i "
-                "LEFT JOIN locations l ON i.location_id = l.id WHERE i.isbn = ? "
-                "ORDER BY i.deleted_at IS NOT NULL, i.id",  # live wins over Trash
-                (isbn13,),
-            ).fetchone()
-            if item:
-                return dict(item)
-        if upc_norm:
-            item = db.execute(
-                "SELECT i.*, l.name as location_name FROM items i "
-                "LEFT JOIN locations l ON i.location_id = l.id WHERE i.upc = ? "
-                "ORDER BY i.deleted_at IS NOT NULL, i.id",  # live wins over Trash
-                (upc_norm,),
-            ).fetchone()
-            if item:
-                return dict(item)
     return None
 
 
@@ -387,7 +359,7 @@ async def _scan_isbn_inner(request, isbn, media_type, location_id, platform, mod
     # --- Modes that operate on existing items ---
     if mode in _EXISTING_ITEM_MODES:
         lookup_barcode = legacy_isbn13 if legacy_candidates else raw
-        item = _find_item_by_barcode(lookup_barcode)
+        item = items_scan_modes._find_item_by_barcode(lookup_barcode)
         if item and item.get("deleted_at"):  # in Trash: report, never act
             return items_scan_modes._scan_mode_in_trash(request, templates, item, raw, mode)
         # inventory mode handles not-found specially
@@ -426,6 +398,9 @@ async def _scan_isbn_inner(request, isbn, media_type, location_id, platform, mod
         assert legacy_isbn13 is not None
         isbn13 = legacy_isbn13
     else:
+        # A 977 is GS1's ISSN prefix: the barcode decides, whatever the hint (G57).
+        if periodicals_svc.parse_barcode(raw):
+            return await periodicals_router.render_scan_candidate(request, templates, raw, location_id, mode)
         # #90: a *known* legacy publisher prefix scanned without its supplement
         # is a book whose title nobody knows yet — never an ordinary product.
         # Stop here and ask for the five digits rather than spend a UPC lookup

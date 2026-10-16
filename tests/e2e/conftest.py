@@ -127,7 +127,7 @@ _UPC_STUB_UNKNOWN = (200, {}, b'{"code":"OK","total":0,"offset":0,"items":[]}')
 
 
 class _UpcStubHandler(http.server.BaseHTTPRequestHandler):
-    """Answers the one endpoint `app/services/upcitemdb.py` calls."""
+    """Answers the one endpoint `app/services/upcitemdb.py` calls; any other path (e.g. `/issn/...`) is a 404."""
 
     def do_GET(self):  # noqa: N802 — BaseHTTPRequestHandler's own spelling
         parts = urlsplit(self.path)
@@ -224,6 +224,9 @@ def _boot_server(
         # cannot remove it. `env_extra` is applied after, so a test that wants
         # a different stub can still override it (#123).
         "SHELF_UPC_LOOKUP_URL": f"{upc_stub_url}/lookup",
+        # The same stub answers 404 for any non-/lookup path, which the ISSN
+        # client classifies no_match, so E2E never reaches portal.issn.org.
+        "SHELF_ISSN_PORTAL_URL": f"{upc_stub_url}/issn/{{issn}}",
     })
     env.update(env_extra or {})
 

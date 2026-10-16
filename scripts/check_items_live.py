@@ -233,7 +233,7 @@ ALLOWLIST: dict[str, dict[str, int]] = {
         "SELECT id FROM items WHERE hardcover_book_id = ? "
         "AND deleted_at IS NOT NULL LIMIT 1": 1,
     },
-    "app/routers/items.py": {
+    "app/routers/items_scan_modes.py": {
         # _find_item_by_barcode — the existing-item scan modes must find a
         # row in Trash so they can report it and offer Restore instead of
         # "not in your collection". Ordered live-first: an ISBN held by a

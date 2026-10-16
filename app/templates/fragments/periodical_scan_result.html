@@ -1,11 +1,11 @@
 <div class="scan-result bg-shelf-card rounded-lg border border-shelf-border p-4" data-scan-status="periodical_confirm">
     <div class="flex items-start justify-between gap-3 mb-3">
         <div>
-            <p class="text-xs text-shelf-muted">Periodical found</p>
-            <h3 class="font-semibold mt-1">{{ candidate.publication_title or 'Publication title needed' }}</h3>
+            <p class="text-xs text-shelf-muted" data-scan-detail>Confirm the issue below</p>
+            <h3 class="font-semibold mt-1" data-scan-title>{{ candidate.publication_title or 'Publication title needed' }}</h3>
             <p class="text-xs text-shelf-muted mt-1">ISSN {{ candidate.issn or 'unknown' }} · {{ candidate.barcode_ean or raw_barcode[:13] }}{% if candidate.barcode_supplement %} + {{ candidate.barcode_supplement }}{% endif %}</p>
         </div>
-        <span class="text-xs px-2 py-1 bg-shelf-hover rounded text-shelf-muted">Magazine</span>
+        <span class="text-xs px-2 py-1 bg-shelf-hover rounded text-shelf-muted" data-scan-badge>Magazine</span>
     </div>
 
     {% if notice %}

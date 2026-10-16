@@ -73,7 +73,7 @@
             </div>
             <div x-show="scanPaused" x-transition class="absolute inset-0 bg-black/80 rounded-xl flex flex-col items-center justify-center p-4 text-center z-10" style="display:none">
                 <p x-show="scanLoading" class="text-shelf-muted text-sm mb-3">Filing item…</p>
-                <template x-if="scanResult"><div><p class="text-white font-medium text-lg mb-1" x-text="scanResult.title || scanResult.code"></p><span class="text-xs px-3 py-1 rounded-full inline-block mb-4 bg-shelf-success/30 text-shelf-success" x-text="scanResult.label || 'shelved'"></span></div></template>
+                <template x-if="scanResult"><div><p class="text-white font-medium text-lg mb-1" x-text="scanResult.title || scanResult.code"></p><span class="text-xs px-3 py-1 rounded-full inline-block mb-4" :class="scanResult.ok ? 'bg-shelf-success/30 text-shelf-success' : scanResult.warn ? 'bg-shelf-warning/30 text-shelf-warning' : scanResult.info ? 'bg-blue-500/30 text-blue-400' : 'bg-shelf-error/30 text-shelf-error'" x-text="scanResult.label || 'shelved'"></span></div></template>
                 <button @click="resumeScanning()" type="button" class="mt-2 px-6 py-2.5 bg-shelf-accent text-white rounded-lg text-sm font-medium hover:bg-shelf-accent2 transition-colors">Scan Next</button>
             </div>
         </div>

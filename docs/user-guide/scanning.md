@@ -230,6 +230,10 @@ overrode you. The reverse mostly holds too: a non-ISBN barcode is almost
 certainly not a book, so a disc scanned under "Book" is not filed as one. The
 one documented exception is the legacy price-point barcode below.
 
+A 977 prefix is a periodical (GS1's ISSN prefix), and that is just as certain.
+In Add and Wishlist mode it opens the periodical confirmation card, whatever the
+dropdown says — see [Periodicals](periodicals.md#scan-a-magazine).
+
 ### Legacy price-point book barcodes
 
 Before Bookland EAN, some books — Scholastic paperbacks in particular — carried
